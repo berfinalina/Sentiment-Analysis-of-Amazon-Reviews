@@ -1,0 +1,90 @@
+#CODE
+
+import pandas as pd 
+import matplotlib.pyplot as plt
+import nltk         #natural language toolkit
+
+plt.style.use('ggplot')
+
+# Read in data
+df = pd.read_csv("Reviews.csv")
+print(df)
+
+# Score Value Count
+score_counts = df["Score"].value_counts()
+
+# Print the value counts
+print("Score Value Counts:")
+print(score_counts)
+
+# Plot the value counts as a bar chart
+plt.bar(score_counts.index, score_counts.values)
+plt.title("Count Value Review by Star")
+plt.xlabel("Score")
+plt.ylabel("Review Stars")
+plt.show()
+
+#VADER (Valence Aware Dictionary and sEntiment Reasoner)
+
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+nltk.download("vader_lexicon")         # Download the VADER lexicon 
+sia = SentimentIntensityAnalyzer()
+
+# Run the polarity score on the entire dataset
+
+from tqdm import tqdm    #Progress Bar
+
+### ** It runs so slow because there are over 500.000 datarow in our set. You can use Batch processing to speed it up.
+# The process with the whole dataset on command lines.
+# results = {}
+# for i, row in tqdm(df.iterrows(), total=len(df)):
+#     text = row["Text"]
+#     myid = row["Id"]
+#     results[myid]= sia.polarity_scores(text)
+#  print(results) 
+
+
+
+# Batch Processing method
+
+batch_size = 100
+limited_df = df.head(500)      #I limited the data up to 500. You can increase. 
+result = {}
+
+for batch_start in tqdm(range(0, len(limited_df), batch_size)):
+    batch_df = limited_df.iloc[batch_start: batch_start + batch_size]
+    batch_result = {
+        row["Id"]: sia.polarity_scores(row["Text"]) for _, row in batch_df.iterrows()
+    }
+    result.update(batch_result)
+
+vaders = pd.DataFrame(result).T.reset_index().rename(columns={'index': 'Id'})
+vaders = vaders.merge(df, on='Id', how='left')
+print(vaders)
+
+
+#Plot VADER results
+import seaborn as sns
+
+ax = sns.barplot(data=vaders, x="Score", y="compound")
+ax.set_title("Compund Score by Amazon Star Review")
+plt.show()
+
+#All metrics (pos,neu and neg)
+
+fig, axs = plt.subplots(1, 3, figsize=(12, 3))
+sns.barplot(data=vaders, x='Score', y='pos', ax=axs[0])
+sns.barplot(data=vaders, x='Score', y='neu', ax=axs[1])
+sns.barplot(data=vaders, x='Score', y='neg', ax=axs[2])
+axs[0].set_title('Positive')
+axs[1].set_title('Neutral')
+axs[2].set_title('Negative')
+plt.tight_layout()
+plt.show()
+
+#Pairplot graph for neg,neu and pos. This is also for batch 500.
+sns.pairplot(data=pd.DataFrame(vaders),
+             vars=['neg', 'neu', 'pos'],
+            hue='Score',
+            palette='tab10')
+plt.show()
